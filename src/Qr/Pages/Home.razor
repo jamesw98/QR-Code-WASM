@@ -1,0 +1,70 @@
+﻿@page "/"
+@using QRCoder
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudContainer MaxWidth="MaxWidth.False" Class="d-flex flex-column align-center">
+
+    <MudPaper Class="position-fixed top-0 left-0 right-0 p-3 z-10 d-flex justify-center" Elevation="2">
+        <MudTextField @bind-Value="_text"
+                      Label="Enter text"
+                      Variant="Variant.Outlined"
+                      Class="w-75 mr-2"
+                      OnKeyDown="OnEnterPressed" />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Generate">
+            Create
+        </MudButton>
+        @if (!string.IsNullOrEmpty(_qrCodeBase64))
+        {
+            <div class="d-flex">
+                <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="Download">Download</MudButton>
+            </div>
+        }
+    </MudPaper>
+
+    <div style="height:90px;"></div>
+
+    @if (!string.IsNullOrEmpty(_qrCodeBase64))
+    {
+        <div class="d-flex justify-center align-center" style="height:calc(100vh - 120px);">
+            <img src="@_qrCodeBase64" alt="QR Code" style="max-width:90vw; max-height:90vh;" />
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private string _text = string.Empty;
+    private string? _qrCodeBase64;
+
+    private void Generate()
+    {
+        if (string.IsNullOrWhiteSpace(_text))
+        {
+            Snackbar.Add("Text cannot be empty.", Severity.Error);
+            return;
+        }
+
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(_text, QRCodeGenerator.ECCLevel.Q);
+        var png = new PngByteQRCode(data);
+        var qrBytes = png.GetGraphic(20);
+        _qrCodeBase64 = $"data:image/png;base64,{Convert.ToBase64String(qrBytes)}";
+    }
+
+    private void OnEnterPressed(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            Generate();
+    }
+    
+    private async Task Download()
+    {
+        if (string.IsNullOrEmpty(_qrCodeBase64))
+        {
+            return;
+        }
+
+        var base64 = _qrCodeBase64.Split(',')[1];
+        await JS.InvokeVoidAsync("downloadFileFromBase64", base64, $"QR Code for {_text}.png");
+    }
+}
